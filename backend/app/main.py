@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import engine, Base, SessionLocal
-from app.models import User
+from app.models import User, ComplianceRule
 from app.routes.auth import router as auth_router, get_password_hash
 from app.routes.onboarding import router as onboarding_router
 from app.ws import manager
@@ -39,7 +39,35 @@ def seed_initial_user():
     finally:
         db.close()
 
+# Seed default global compliance rules
+def seed_compliance_rules():
+    db = SessionLocal()
+    try:
+        rules = [
+            {"key": "STRICT_NAME_MATCH", "val": True, "desc": "Require document brand names to match state registries."},
+            {"key": "REQUIRE_SSL", "val": True, "desc": "Flag website reviews if SSL/TLS is missing."},
+            {"key": "REJECT_PROHIBITED_CONTENT", "val": True, "desc": "Auto-reject if website crawls contain gambling/adult terms."},
+            {"key": "PREVENT_DUPLICATE_TAX_ID", "val": True, "desc": "Block onboarding if Registration ID is already in use."},
+            {"key": "PREVENT_DUPLICATE_PHONE", "val": True, "desc": "Auto-flag onboarding if Owner Phone is already in use."}
+        ]
+        for r in rules:
+            existing = db.query(ComplianceRule).filter(ComplianceRule.rule_key == r["key"]).first()
+            if not existing:
+                rule = ComplianceRule(
+                    rule_key=r["key"],
+                    value_bool=r["val"],
+                    description=r["desc"]
+                )
+                db.add(rule)
+        db.commit()
+        logger.info("Successfully seeded default global compliance rules.")
+    except Exception as e:
+        logger.error(f"Error seeding compliance rules: {e}")
+    finally:
+        db.close()
+
 seed_initial_user()
+seed_compliance_rules()
 
 # Background task to listen to Celery updates via Redis Pub/Sub
 async def redis_pubsub_listener():
@@ -50,14 +78,11 @@ async def redis_pubsub_listener():
     
     try:
         while True:
-            # Non-blocking listen
             message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if message:
                 try:
                     payload = json.loads(message['data'].decode('utf-8'))
                     merchant_id = payload.get("merchant_id")
-                    
-                    # Broadcast to specific merchant's channel & global channel
                     await manager.broadcast_to_channel(f"merchant_{merchant_id}", payload)
                 except Exception as ex:
                     logger.error(f"Error parsing Redis Pub/Sub event: {ex}")
@@ -91,7 +116,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev / demo purposes
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -119,9 +144,7 @@ async def websocket_status_endpoint(websocket: WebSocket, channel: str):
     await manager.connect(websocket, channel)
     try:
         while True:
-            # Keep connection alive, listen for ping/messages (none expected from client)
             data = await websocket.receive_text()
-            # If client sends something, echoes back as pingpong
             await websocket.send_text(json.dumps({"ping": "pong", "received": data}))
     except WebSocketDisconnect:
         manager.disconnect(websocket, channel)
