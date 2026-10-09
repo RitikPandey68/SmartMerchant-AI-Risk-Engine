@@ -71,10 +71,15 @@ seed_compliance_rules()
 
 # Background task to listen to Celery updates via Redis Pub/Sub
 async def redis_pubsub_listener():
-    logger.info("Starting background Redis Pub/Sub listener...")
-    r = aioredis.from_url(settings.REDIS_URL)
-    pubsub = r.pubsub()
-    await pubsub.subscribe("smartmerchant:updates")
+    logger.info("Checking Redis connection for real-time pubsub...")
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        pubsub = r.pubsub()
+        await pubsub.subscribe("smartmerchant:updates")
+        logger.info("Connected to Redis Pub/Sub listener.")
+    except Exception as e:
+        logger.warning(f"Redis Pub/Sub listener skipped (Redis not running locally: {e}). In-process messaging active.")
+        return
     
     try:
         while True:
@@ -92,8 +97,11 @@ async def redis_pubsub_listener():
     except Exception as e:
         logger.error(f"Error in Redis listener thread: {e}")
     finally:
-        await pubsub.unsubscribe("smartmerchant:updates")
-        await r.close()
+        try:
+            await pubsub.unsubscribe("smartmerchant:updates")
+            await r.close()
+        except Exception:
+            pass
 
 # Lifespan Context Manager
 @asynccontextmanager

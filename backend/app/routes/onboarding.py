@@ -6,6 +6,7 @@ import uuid
 import logging
 import requests
 import re
+from datetime import datetime
 from urllib.parse import urlparse
 
 from app.database import get_db
@@ -17,8 +18,24 @@ from app.schemas import (
 from app.routes.auth import get_current_auditor
 from app.worker import process_merchant_verification
 
+import threading
+import redis
+from app.config import settings
+
 logger = logging.getLogger("routes_onboarding")
 router = APIRouter(tags=["Merchant Onboarding & Risk"])
+
+_redis_available = None
+def is_redis_available():
+    global _redis_available
+    if _redis_available is None:
+        try:
+            r = redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=0.2)
+            r.ping()
+            _redis_available = True
+        except Exception:
+            _redis_available = False
+    return _redis_available
 
 class AutofillRequest(BaseModel):
     url: str
@@ -94,8 +111,17 @@ def submit_onboarding(merchant_in: MerchantCreate, db: Session = Depends(get_db)
         db.refresh(merchant)
         
         # Trigger background validation task
-        task = process_merchant_verification.delay(merchant.id)
-        logger.info(f"Triggered background verification for merchant: {merchant.id} task: {task.id}")
+        if is_redis_available():
+            try:
+                task = process_merchant_verification.delay(merchant.id)
+                logger.info(f"Triggered background verification for merchant: {merchant.id} task: {task.id}")
+            except Exception as e:
+                logger.warning(f"Celery broker dispatch failed, falling back to background thread: {e}")
+                t = threading.Thread(target=process_merchant_verification, args=(merchant.id,), daemon=True)
+                t.start()
+        else:
+            t = threading.Thread(target=process_merchant_verification, args=(merchant.id,), daemon=True)
+            t.start()
         
         return {
             "merchant": merchant,
@@ -184,8 +210,11 @@ def override_merchant_status(
     db.commit()
     db.refresh(merchant)
     
-    from app.worker import dispatch_webhooks
-    dispatch_webhooks.delay(merchant.id)
+    try:
+        from app.worker import dispatch_webhooks
+        dispatch_webhooks.delay(merchant.id)
+    except Exception as ex:
+        logger.warning(f"Webhook dispatch failed: {ex}")
     
     logger.info(f"Auditor {auditor.username} manually changed merchant {merchant.id} to {merchant.status}")
     return merchant

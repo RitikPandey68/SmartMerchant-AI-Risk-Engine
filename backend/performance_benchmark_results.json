@@ -1,0 +1,75 @@
+{
+  "api_benchmarks": [
+    {
+      "endpoint": "GET / (Health Check)",
+      "runs": 50,
+      "success_rate": "100.0%",
+      "avg_ms": 3.38,
+      "p50_ms": 3.25,
+      "p95_ms": 4.29,
+      "p99_ms": 9.33,
+      "min_ms": 2.4,
+      "max_ms": 9.33
+    },
+    {
+      "endpoint": "POST /api/auth/token (Bcrypt + JWT)",
+      "runs": 20,
+      "success_rate": "100.0%",
+      "avg_ms": 242.61,
+      "p50_ms": 237.1,
+      "p95_ms": 286.12,
+      "p99_ms": 286.12,
+      "min_ms": 233.78,
+      "max_ms": 286.12
+    },
+    {
+      "endpoint": "GET /api/compliance/rules",
+      "runs": 30,
+      "success_rate": "100.0%",
+      "avg_ms": 6.57,
+      "p50_ms": 6.45,
+      "p95_ms": 7.91,
+      "p99_ms": 8.9,
+      "min_ms": 5.37,
+      "max_ms": 8.9
+    },
+    {
+      "endpoint": "GET /api/merchants (Filtered DB Fetch)",
+      "runs": 30,
+      "success_rate": "100.0%",
+      "avg_ms": 9.36,
+      "p50_ms": 7.75,
+      "p95_ms": 22.86,
+      "p99_ms": 25.57,
+      "min_ms": 6.52,
+      "max_ms": 25.57
+    },
+    {
+      "endpoint": "POST /api/onboarding (Ingestion)",
+      "runs": 15,
+      "success_rate": "100.0%",
+      "avg_ms": 76.88,
+      "p50_ms": 36.08,
+      "p95_ms": 485.2,
+      "p99_ms": 485.2,
+      "min_ms": 17.05,
+      "max_ms": 485.2
+    },
+    {
+      "endpoint": "GET http://localhost:3000 (Next.js SSR)",
+      "runs": 20,
+      "success_rate": "100.0%",
+      "avg_ms": 86.22,
+      "p50_ms": 72.57,
+      "p95_ms": 190.49,
+      "p99_ms": 190.49,
+      "min_ms": 59.31,
+      "max_ms": 190.49
+    }
+  ],
+  "agent_validation_benchmarks": {
+    "avg_microsec": 3.846,
+    "p95_microsec": 4.1,
+    "throughput_ops_per_sec": 260004
+  }
+}

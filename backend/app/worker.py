@@ -12,6 +12,12 @@ logger = logging.getLogger("celery_worker")
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 celery_app = Celery("tasks", broker=REDIS_URL, backend=REDIS_URL)
+celery_app.conf.update(
+    broker_connection_timeout=0.2,
+    broker_connection_retry=False,
+    broker_connection_retry_on_startup=False,
+    broker_connection_max_retries=0
+)
 
 from app.database import SessionLocal
 from app.config import settings
@@ -27,7 +33,10 @@ def publish_ws_update(merchant_id: int, event_type: str, data: dict):
         "data": data,
         "timestamp": datetime.utcnow().isoformat()
     }
-    r_client.publish("smartmerchant:updates", json.dumps(payload))
+    try:
+        r_client.publish("smartmerchant:updates", json.dumps(payload))
+    except Exception as e:
+        logger.debug(f"Redis publish skipped (broker offline): {e}")
 
 @celery_app.task(name="app.worker.process_merchant_verification")
 def process_merchant_verification(merchant_id: int):

@@ -24,10 +24,10 @@ def verify_ein_format(ein: str) -> bool:
 
 def verify_gstin_format(gstin: str) -> bool:
     """Checks if a string matches the Indian GSTIN format."""
-    gstin = gtin.strip().upper()
+    gstin = gstin.strip().upper()
     # Format: 2 state code digits, 10 PAN characters, 1 entity code digit, 1 'Z' default, 1 checksum char
     pattern = r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$"
-    return bool(re.match(pattern, gtin))
+    return bool(re.match(pattern, gstin))
 
 def get_string_similarity(s1: str, s2: str) -> float:
     """Simple Levenshtein-like token ratio checking for name validation."""
